@@ -1,6 +1,8 @@
 //express 모듈 세팅
 const express = require("express");
 const router = express.Router();
+const conn = require("../mariadb");
+
 router.use(express.json());
 
 let db = new Map();
@@ -11,25 +13,24 @@ router
   //채널 전체 조회
   .get((req, res) => {
     var { userId } = req.body;
-    //json arr
-    let channels = [];
-    if (db.size && userId) {
-      db.forEach((val, key) => {
-        if (val.userId === userId) channels.push(val);
+
+    let sql = `SELECT * FROM channels WHERE user_id = ?`;
+    if (userId) {
+      conn.query(sql, userId, function (err, results) {
+        if (results.length) {
+          res.status(200).json(results);
+        } else notFoundChannel(res);
       });
-      channels.length ? res.status(200).json(channels) : notFoundChannel();
-    } else {
-      notFoundChannel();
-    }
+    } else res.status(400).end();
   })
   //채널 개별 생성
   .post((req, res) => {
-    if (req.body.channelTitle) {
-      let channel = req.body;
-      db.set(id++, channel);
-
-      res.status(201).json({
-        message: `${db.get(id - 1).channelTitle} 채널을 응원합니다!`,
+    const { name, userId } = req.body;
+    if (name && userId) {
+      let sql = `INSERT INTO users (name, user_id) VALUES (?,?)`;
+      let values = [name, userId];
+      conn.query(sql, values, function (err, results) {
+        res.status(201).json(results);
       });
     } else {
       res.status(404).json({
@@ -45,13 +46,11 @@ router
     let { id } = req.params;
     id = parseInt(id);
 
-    let channel = db.get(id);
-
-    if (channel) {
-      res.status(200).json(db.get(id));
-    } else {
-      notFoundChannel();
-    }
+    let sql = `SELECT * FROM channels WHERE id = ?`;
+    conn.query(sql, id, function (err, results) {
+      if (results.length) res.status(200).json(results);
+      else notFoundChannel(res);
+    });
   })
   //채널 개별 수정
   .put((req, res) => {
@@ -90,7 +89,7 @@ router
     }
   });
 
-function notFoundChannel() {
+function notFoundChannel(res) {
   res.status(404).json({
     message: "채널 정보를 찾을 수 없습니다.",
   });

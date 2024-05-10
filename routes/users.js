@@ -1,80 +1,66 @@
 //express 모듈 세팅
 const express = require("express");
 const router = express.Router();
+const conn = require("../mariadb");
+
 router.use(express.json());
-
-let db = new Map();
-var id = 1; //중복확인 방식
-
-//로그인 아이디 찾기
-function isExist(obj) {
-  if (Object.keys(obj).length) return true;
-  else return false;
-}
 
 //로그인
 router.post("/login", (req, res) => {
-  console.log(req.body); //userId, pwd
-  //userId가 db에 저장된 회원인지
-  const { userId, password } = req.body;
-  var loginUser = {};
+  console.log(req.body);
+  const { email, password } = req.body;
 
-  db.forEach((val) => {
-    if (val.userId == userId) {
-      loginUser = val;
-    }
-  });
+  let sql = `SELECT * FROM users WHERE email = ?`;
+  conn.query(sql, email, function (err, results) {
+    var loginUser = results[0];
 
-  //userId 값을 못찾으면
-  if (isExist(loginUser)) {
-    //pwd 맞는지 비교
-    if (loginUser.password === password) {
+    if (loginUser && loginUser.password == password)
       res
         .status(200)
         .json({ message: `${loginUser.name}님 로그인 되었습니다.` });
-    } else {
-      res.status(400).json({ message: `비밀번호가 틀렸습니다.` });
-    }
-  } else {
-    res.status(404).json({ message: `회원 정보가 없습니다` });
-  }
+    else res.status(404).json({ message: "이메일 또는 비밀번호가 틀렸습니다" });
+  });
 });
 
 //회원가입
 router.post("/join", (req, res) => {
-  // console.log(req.body)
   if (req.body == {}) {
     res.status(400).json({ message: "입력값을 다시 확인해주세요" });
   } else {
-    const { userId } = req.body;
-    db.set(userId, req.body);
-    res.status(201).json({ message: `${db.get(userId).name}님 환영합니다.` });
+    const { email, name, password, contact } = req.body;
+
+    let sql = `INSERT INTO users (email, name, password, contact) VALUES (?,?,?,?)`;
+    let values = [email, name, password, contact];
+    conn.query(sql, values, function (err, results) {
+      res.status(201).json(results);
+    });
   }
 });
 
 router
   .route("/users")
+  //회원 개별 조희
   .get((req, res) => {
-    let { userId } = req.body;
+    let { email } = req.body;
 
-    const user = db.get(userId);
-    if (user) {
-      res.status(200).json({
-        userId: user.userId,
-        name: user.name,
-      });
-    } else res.status(404).json({ message: "회원 정보가 없습니다" });
+    let sql = `SELECT * FROM users WHERE email = ?`;
+    conn.query(sql, email, function (err, results) {
+      if (results.length) res.status(200).json(results);
+      else res.status(404).json({ message: "회원 정보가 없습니다" });
+    });
   })
+  //회원 개별 삭제
   .delete((req, res) => {
-    let { userId } = req.body;
+    const { email } = req.body;
 
-    const user = db.get(userId);
-    if (user) {
-      db.delete(userId);
-      res.status(200).json({
-        message: `${user.name}님 다음에 또 뵙겠습니다.`,
-      });
-    } else res.status(404).json({ message: "회원 정보가 없습니다" });
+    let sql = `DELETE FROM users WHERE email = ?`
+    conn.query(
+      sql,
+      email,
+      function (err, results) {
+        res.status(201).json(results);
+      }
+    );
   });
 
 module.exports = router;
